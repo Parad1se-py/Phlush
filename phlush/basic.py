@@ -64,7 +64,7 @@ class Position:
 # TOKENS
 #######################################
 
-TT_INT          = 'INT'
+TT_INT      = 'INT'
 TT_FLOAT    = 'FLOAT'
 TT_PLUS     = 'PLUS'
 TT_MINUS    = 'MINUS'
@@ -72,7 +72,8 @@ TT_MUL      = 'MUL'
 TT_DIV      = 'DIV'
 TT_LPAREN   = 'LPAREN'
 TT_RPAREN   = 'RPAREN'
-TT_EOF          = 'EOF'
+TT_EOF      = 'EOF'
+TT_CLS      = 'CLS'
 
 class Token:
         def __init__(self, type_, value=None, pos_start=None, pos_end=None):
@@ -88,8 +89,7 @@ class Token:
                     self.pos_end = pos_end
         
         def __repr__(self):
-                if self.value: return f'{self.type}:{self.value}'
-                return f'{self.type}'
+                return f'{self.type}:{self.value}' if self.value else f'{self.type}'
 
 #######################################
 # LEXER
@@ -147,7 +147,7 @@ class Lexer:
                 dot_count = 0
                 pos_start = self.pos.copy()
 
-                while self.current_char != None and self.current_char in DIGITS + '.':
+                while self.current_char != None and self.current_char in f'{DIGITS}.':
                         if self.current_char == '.':
                                 if dot_count == 1: break
                                 dot_count += 1
@@ -241,36 +241,35 @@ class Parser:
     ###################################
 
     def factor(self):
-        res = ParseResult()
-        tok = self.current_tok
+            res = ParseResult()
+            tok = self.current_tok
 
-        if tok.type in (TT_PLUS, TT_MINUS):
-            res.register(self.advance())
-            factor = res.register(self.factor())
-            if res.error: return res
-            return res.success(UnaryOpNode(tok, factor))
-        
-        elif tok.type in (TT_INT, TT_FLOAT):
-            res.register(self.advance())
-            return res.success(NumberNode(tok))
+            if tok.type in (TT_PLUS, TT_MINUS):
+                    res.register(self.advance())
+                    factor = res.register(self.factor())
+                    if res.error: return res
+                    return res.success(UnaryOpNode(tok, factor))
 
-        elif tok.type == TT_LPAREN:
-            res.register(self.advance())
-            expr = res.register(self.expr())
-            if res.error: return res
-            if self.current_tok.type == TT_RPAREN:
+            elif tok.type in (TT_INT, TT_FLOAT):
                 res.register(self.advance())
-                return res.success(expr)
-            else:
-                return res.failure(InvalidSyntaxError(
-                    self.current_tok.pos_start, self.current_tok.pos_end,
-                    "Expected ')'"
-                ))
+                return res.success(NumberNode(tok))
 
-        return res.failure(InvalidSyntaxError(
-            tok.pos_start, tok.pos_end,
-            "Expected int or float"
-        ))
+            elif tok.type == TT_LPAREN:
+                    res.register(self.advance())
+                    expr = res.register(self.expr())
+                    if res.error: return res
+                    if self.current_tok.type != TT_RPAREN:
+                            return res.failure(InvalidSyntaxError(
+                                self.current_tok.pos_start, self.current_tok.pos_end,
+                                "Expected ')'"
+                            ))
+
+                    res.register(self.advance())
+                    return res.success(expr)
+            return res.failure(InvalidSyntaxError(
+                tok.pos_start, tok.pos_end,
+                "Expected int or float"
+            ))
 
     def term(self):
         return self.bin_op(self.factor, (TT_MUL, TT_DIV))
@@ -300,12 +299,12 @@ class Parser:
 
 def run(fn, text):
         # Generate tokens
-        lexer = Lexer(fn, text)
-        tokens, error = lexer.make_tokens()
-        if error: return None, error
+    lexer = Lexer(fn, text)
+    tokens, error = lexer.make_tokens()
+    if error: return None, error
         
-        # Generate AST
-        parser = Parser(tokens)
-        ast = parser.parse()
+    # Generate AST
+    parser = Parser(tokens)
+    ast = parser.parse()
 
-        return ast.node, ast.error
+    return ast.node, ast.error
